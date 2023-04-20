@@ -16,10 +16,14 @@ struct MyStringHash {
             generateRValues();
         }
     }
+
     // hash function entry point (i.e. this is h(k))
     HASH_INDEX_T operator()(const std::string& k) const
     {
         // Add your code here
+        //Temp string
+        std::string t = k;
+        while (t.length() < 30)
 
 
     }
@@ -28,7 +32,18 @@ struct MyStringHash {
     HASH_INDEX_T letterDigitToNumber(char letter) const
     {
         // Add code here or delete this helper function if you do not want it
-
+        if (letter < 48 ||
+            (letter > 57 && letter < 65) ||
+            (letter > 90 && letter < 97) ||
+            letter > 122){
+            return 0;
+        }
+        //lowercase
+        if (letter > 97) return letter - 97;
+        //capital
+        if (letter > 64) return letter - 65;
+        //numerical
+        return letter - 22;
     }
 
     // Code to generate the random R values
