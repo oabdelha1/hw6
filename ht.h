@@ -282,6 +282,8 @@ private:
     double loadingFact;
     int numitem;
     double resizeAlpha_;
+    size_t valid;
+    int totalvals;
 };
 
 // ----------------------------------------------------------------------------
@@ -291,17 +293,17 @@ private:
 // Static array of prime table sizes
 template<typename K, typename V, typename Prober, typename Hash, typename KEqual>
 const HASH_INDEX_T HashTable<K,V,Prober,Hash,KEqual>::CAPACITIES[] =
-    {
-        11, 23, 47, 97, 197, 397, 797, 1597, 3203, 6421, 12853, 25717, 51437, 102877,
-        205759, 411527, 823117, 1646237, 3292489, 6584983, 13169977, 26339969, 52679969,
-        105359969, 210719881, 421439783, 842879579, 1685759167
-    };
+        {
+                11, 23, 47, 97, 197, 397, 797, 1597, 3203, 6421, 12853, 25717, 51437, 102877,
+                205759, 411527, 823117, 1646237, 3292489, 6584983, 13169977, 26339969, 52679969,
+                105359969, 210719881, 421439783, 842879579, 1685759167
+        };
 
 // To be completed
 template<typename K, typename V, typename Prober, typename Hash, typename KEqual>
 HashTable<K,V,Prober,Hash,KEqual>::HashTable(
-    double resizeAlpha, const Prober& prober, const Hasher& hash, const KEqual& kequal)
-       :  hash_(hash), kequal_(kequal), prober_(prober)
+        double resizeAlpha, const Prober& prober, const Hasher& hash, const KEqual& kequal)
+        :  hash_(hash), kequal_(kequal), prober_(prober)
 {
     // Initialize any other data members as necessary
     loadingFact = 0;
@@ -309,6 +311,7 @@ HashTable<K,V,Prober,Hash,KEqual>::HashTable(
     mIndex_ = 0;
     resizeAlpha_ = resizeAlpha;
     table_.resize(CAPACITIES[mIndex_], nullptr);
+    totalvals = 0;
 }
 
 // To be completed
@@ -347,26 +350,39 @@ size_t HashTable<K,V,Prober,Hash,KEqual>::size() const
 template<typename K, typename V, typename Prober, typename Hash, typename KEqual>
 void HashTable<K,V,Prober,Hash,KEqual>::insert(const ItemType& p)
 {
-    // << "Inserting" << std::endl;
+    //std::cout<< "Inserting, items: " <<numitem << std::endl;
 
-    numitem++;
-    loadingFact = static_cast<double>(numitem) / CAPACITIES[mIndex_];
-    if (loadingFact > resizeAlpha_){
+    HashItem * dupecheck = internalFind(p.first);
+    if (dupecheck!=nullptr){
+        //std::cout<<"Fixed dupe"<<std::endl;
+        dupecheck->item = p;
+        return;
+    }
+
+    loadingFact = static_cast<double>(totalvals) / CAPACITIES[mIndex_];
+    //std::cout << loadingFact << std::endl;
+    if (loadingFact >= resizeAlpha_){
+        //std::cout<<"Resize, items= " <<numitem<< " load: " <<loadingFact<< std::endl;
         resize();
     }
 
 
     HASH_INDEX_T hashval = this->probe(p.first);
+
     if(hashval == npos){
         throw std::logic_error("no location found");
     }
     else if(table_[hashval] == nullptr){
+        //std::cout<<"Empty spot insert"<<std::endl;
         HashItem* item = new HashItem(p);
         table_[hashval] = item;
     }
     else{
+        //std::cout <<"Else statement ran" << std::endl;
         table_[hashval]->item.second = p.second;
     }
+    totalvals++;
+    numitem++;
 
     /*
     HashItem * loc = internalFind(p.first);
@@ -374,7 +390,6 @@ void HashTable<K,V,Prober,Hash,KEqual>::insert(const ItemType& p)
         return;
     }
     size_t ind = probe(p.first);
-
     if (ind == npos){
         throw std::logic_error('"NO!!!!!!");
     }
@@ -481,6 +496,8 @@ void HashTable<K,V,Prober,Hash,KEqual>::resize()
     std::vector<HashItem*> old = table_;
     std::vector<HashItem*> newvect(CAPACITIES[mIndex_], nullptr);
     table_ = newvect;
+    numitem = 0;
+    totalvals = 0;
     for (size_t i = 0; i < old.size(); i++){
 
         if (old[i] == nullptr){
@@ -497,6 +514,8 @@ void HashTable<K,V,Prober,Hash,KEqual>::resize()
                 throw std::logic_error("no location");
             }
             table_[loc] = old[i];
+            numitem++;
+            totalvals++;
         }
 
 
@@ -518,7 +537,7 @@ void HashTable<K,V,Prober,Hash,KEqual>::resize()
         //delete old[i];
          */
     }
-
+    /*
     loadingFact=0;
     numitem = 0;
     for (size_t i = 0; i < table_.size(); i++){
@@ -526,7 +545,7 @@ void HashTable<K,V,Prober,Hash,KEqual>::resize()
             numitem++;
             loadingFact = static_cast<double>(numitem) / CAPACITIES[mIndex_];
         }
-    }
+    }*/
 }
 
 // Almost complete
@@ -537,7 +556,7 @@ HASH_INDEX_T HashTable<K,V,Prober,Hash,KEqual>::probe(const KeyType& key) const
     HASH_INDEX_T h = hash_(key) % CAPACITIES[mIndex_];
     prober_.init(h, CAPACITIES[mIndex_], key);
 
-    HASH_INDEX_T loc = prober_.next(); 
+    HASH_INDEX_T loc = prober_.next();
     totalProbes_++;
     while(Prober::npos != loc)
     {
@@ -546,8 +565,8 @@ HASH_INDEX_T HashTable<K,V,Prober,Hash,KEqual>::probe(const KeyType& key) const
         if(nullptr == table_[loc] ) {
             return loc;
         }
-        // fill in the condition for this else if statement which should 
-        // return 'loc' if the given key exists at this location
+            // fill in the condition for this else if statement which should
+            // return 'loc' if the given key exists at this location
         else if((table_[loc]->deleted == false) && kequal_(table_[loc]->item.first, key)) {
             return loc;
         }
@@ -562,13 +581,14 @@ HASH_INDEX_T HashTable<K,V,Prober,Hash,KEqual>::probe(const KeyType& key) const
 template<typename K, typename V, typename Prober, typename Hash, typename KEqual>
 void HashTable<K, V, Prober, Hash, KEqual>::reportAll(std::ostream& out) const
 {
-	for(HASH_INDEX_T i = 0; i < CAPACITIES[mIndex_]; ++i)
-	{
-		if(table_[i] != nullptr)
-		{
-			out << "Bucket " << i << ": " << table_[i]->item.first << " " << table_[i]->item.second << std::endl;
-		}
-	}
+    for(HASH_INDEX_T i = 0; i < CAPACITIES[mIndex_]; ++i)
+    {
+        if(table_[i] != nullptr)
+        {
+            out << "Bucket " << i << ": " << table_[i]->item.first << " " << table_[i]->item.second << std::endl;
+        }
+    }
 }
+
 
 #endif
