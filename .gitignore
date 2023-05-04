@@ -5,3 +5,10 @@ str-hash-test
 hash-check
 boggle-driver
 hw6_tests/
+.DS_Store
+.idea/
+hw6_tests.tar.gz
+strtest
+bogtest
+ht-test_copy.cpp
+httest
